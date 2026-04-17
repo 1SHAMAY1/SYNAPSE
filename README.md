@@ -1,4 +1,5 @@
-# SYNAPSE: Neural Cognitive Swarm Command Station
+# SYNAPSE: Synthetic Yield Network for Autonomous Parallel Swarm Execution
+## Neural Cognitive Swarm Command Station
 
 **SYNAPSE** is a high-performance, multimodal multi-agent orchestration platform designed for massively parallel technical execution. It transforms standard large language model interactions into a persistent, high-density command station optimized for more than 100-agent swarm coordination and recursive context optimization.
 
