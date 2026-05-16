@@ -100,7 +100,7 @@ const DashboardView: React.FC<DashboardProps> = ({ metrics, thoughts, swarmStatu
     }
   };
 
-  // ── Metabolic Accounting ──────────────────────────────────────────────
+  // Metabolic Accounting
   const totalHiveTokens = swarmStatus.reduce((acc, s) => acc + (s.usage?.totalTokens || 0), 0);
   const providerUsage = swarmStatus.reduce((acc: any, s) => {
     const alias = s.status === 'FAILED' ? 'N/A' : s.role === 'COORDINATOR' ? 'PRIMARY' : 'HIVE';

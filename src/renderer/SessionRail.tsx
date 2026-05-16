@@ -20,7 +20,7 @@ const SessionRail: React.FC<SessionRailProps> = ({ sessions, activeSessionId, on
   return (
     <div className="w-[70px] bg-black border-r border-slate-900 h-full flex flex-col items-center py-8 gap-6 z-50 pointer-events-auto">
       
-      {/* ── New Session Cluster ── */}
+      {/* New Session Cluster */}
       <motion.button
         whileHover={{ scale: 1.1, rotate: 90 }}
         whileTap={{ scale: 0.9 }}
@@ -33,7 +33,7 @@ const SessionRail: React.FC<SessionRailProps> = ({ sessions, activeSessionId, on
 
       <div className="w-8 h-[1px] bg-slate-900" />
 
-      {/* ── Session List ── */}
+      {/* Session List */}
       <div className="flex-1 flex flex-col gap-4 overflow-y-auto scrollbar-hide w-full items-center">
         <AnimatePresence>
           {sessions.map((session) => (
@@ -59,12 +59,12 @@ const SessionRail: React.FC<SessionRailProps> = ({ sessions, activeSessionId, on
                 )}
               </button>
 
-              {/* ── Session Name Tooltip/Label ── */}
+              {/* Session Name Tooltip/Label */}
               <div className="absolute left-14 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-slate-900 border border-slate-800 text-[9px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-all shadow-2xl z-50">
                 {session.name}
               </div>
 
-              {/* ── Delete Action (Only for non-default) ── */}
+              {/* Delete Action (Only for non-default) */}
               {session.id !== 1 && (
                 <button
                   onClick={(e) => { e.stopPropagation(); onDelete(session.id); }}

@@ -2,8 +2,6 @@ import { ModelProvider } from '../llm/provider.js';
 import { MemoryEngine } from '../memory/engine.js';
 import { generateText } from 'ai';
 
-// ── MBTI Archetype Roster (All 16 + Original 5 Core Roles) ─────────────────
-
 export type AgentRole =
   | 'COORDINATOR' | 'RESEARCHER' | 'ARCHITECT' | 'CODER' | 'CRITIC'
   | 'INTJ' | 'INTP' | 'ENTJ' | 'ENTP'
@@ -20,8 +18,6 @@ export const AGENT_GROUP: Record<AgentRole, MbtiGroup> = {
   ISTJ: 'SENTINEL', ISFJ: 'SENTINEL', ESTJ: 'SENTINEL', ESFJ: 'SENTINEL',
   ISTP: 'EXPLORER', ISFP: 'EXPLORER', ESTP: 'EXPLORER', ESFP: 'EXPLORER',
 };
-
-// ── GLOBAL CONSTRAINTS (Technical Sovereignty & Anti-Hallucination) ────────
 
 const GLOBAL_CONSTRAINTS = `
 ### TACTICAL CONSTRAINTS (MANDATORY)
@@ -44,8 +40,6 @@ export interface AgentStatus {
   };
   customPrompt?: string;
 }
-
-// ── Personality Prompts (Injected with Constraints) ──────────────────────────
 
 const AGENT_PERSONALITIES: Record<AgentRole, string> = {
   COORDINATOR: `You are the COORDINATOR. Strategic, decisive, orchestrator. ${GLOBAL_CONSTRAINTS}`,
@@ -101,8 +95,6 @@ interface AgentResult {
   usage?: any;
 }
 
-// ── SwarmCoordinator ──────────────────────────────────────────────────────────
-
 export class SwarmCoordinator {
   private population: Map<AgentRole, AgentStatus> = new Map();
   private config: any;
@@ -142,10 +134,10 @@ export class SwarmCoordinator {
     let alias = this.config.default_provider_alias || this.config.providers?.[0]?.alias;
     roles.forEach(role => {
       if (!this.population.has(role)) {
-        this.population.set(role, { 
-          role, 
-          status: 'IDLE', 
-          providerAlias: alias, 
+        this.population.set(role, {
+          role,
+          status: 'IDLE',
+          providerAlias: alias,
           group: AGENT_GROUP[role],
           usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
           customPrompt: AGENT_PERSONALITIES[role]
@@ -166,7 +158,7 @@ export class SwarmCoordinator {
         completionTokens: current.usage.completionTokens + (usage.completionTokens || 0),
         totalTokens: current.usage.totalTokens + (usage.totalTokens || 0)
       } : current.usage;
-      
+
       this.population.set(role as any, { ...current, status, lastAction, usage: nextUsage });
     }
   }
@@ -181,24 +173,24 @@ export class SwarmCoordinator {
       const mbtiEnabled = this.config?.system?.mbti_enabled !== false;
       const { text } = await generateText({ model, prompt: ROUTER_PROMPT(task, mbtiEnabled) });
       const parsed = JSON.parse(text.replace(/```json|```/g, '').trim());
-      
+
       // Normalize agents list (strings or objects)
       const rawAgents = parsed.agents || [];
       const agents = rawAgents.map((a: any) => {
         if (typeof a === 'string') return { role: a, count: 1 };
         return a;
       });
-      
+
       this.routingCache.set(task, { agents: agents as any, timestamp: Date.now() });
-      
+
       // Auto-register required roles
       agents.forEach((a: any) => {
         const roleKey = a.role === 'CUSTOM' ? a.name : a.role;
         if (!this.population.has(roleKey)) {
-          this.population.set(roleKey, { 
-            role: roleKey, 
-            status: 'IDLE', 
-            providerAlias: alias, 
+          this.population.set(roleKey, {
+            role: roleKey,
+            status: 'IDLE',
+            providerAlias: alias,
             group: AGENT_GROUP[a.role as AgentRole] || 'CORE',
             usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
             customPrompt: a.directive || AGENT_PERSONALITIES[a.role as AgentRole] || GLOBAL_CONSTRAINTS
@@ -253,11 +245,11 @@ export class SwarmCoordinator {
     try {
       const history = this.memory.getChatHistory(sessionId, 100);
       const rawUnfiltered = history.filter(m => !m.hardened_to_id && m.role !== 'error');
-      
+
       // We harden in blocks of 15 to maintain recursive clarity
       if (rawUnfiltered.length >= 15) {
         this.emitThought('COORDINATOR', `Sovereign Hardening triggered for Session ${sessionId}. Crystallizing ${rawUnfiltered.length} raw fragments...`, sessionId, 'ACTION');
-        
+
         const segment = rawUnfiltered.slice(0, 10);
         const startId = segment[0].id!;
         const endId = segment[segment.length - 1].id!;
@@ -284,7 +276,7 @@ export class SwarmCoordinator {
     const squadSize = squadResults.length;
     this.emitThought('COORDINATOR', `Executing Squad Synthesis for ${squadSize} nodes...`, sessionId, 'ACTION');
     const composite = squadResults.map(r => `[${r.role}]:\n${r.text}`).join('\n\n---\n\n');
-    
+
     const { text, usage } = await generateText({
       model: ModelProvider.getInstance().getModel(alias),
       system: `You are a SQUAD LEAD. Synthesize the reports of ${squadSize} specialists into a high-density squad briefing. Focus on consensus, edge cases, and contradictions.`,
@@ -303,26 +295,26 @@ export class SwarmCoordinator {
       const relevantContext = this.memory.getRelevantContext(task, 5);
       const recruitment = await this.routeTask(task, alias, sessionId);
 
-      // ── Surgical Population Refactoring ─────────────────────────────────
+      // Surgical Population Refactoring
       let finalRecruitList: string[] = [];
       const densityMatch = task.match(/(\d+)(?:\s+|-)(?:agents|coders|nodes|specialists|head\s*count|total)/i);
       const globalDensity = densityMatch ? parseInt(densityMatch[1]) : 0;
 
       if (recruitment.length > 0) {
         this.emitThought('COORDINATOR', `Recruiting surgical hive: ${recruitment.length} archetypes identified.`, sessionId, 'ACTION');
-        
+
         // Use LLM-provided counts if they exist, otherwise distribute global density
         recruitment.forEach((a: any) => {
           const roleKey = a.role === 'CUSTOM' ? a.name : a.role;
           const count = a.count || Math.max(1, Math.floor(globalDensity / recruitment.length));
-          
+
           for (let i = 1; i <= count; i++) {
             const agentId = count === 1 ? roleKey : `${roleKey}_${i.toString().padStart(2, '0')}`;
             finalRecruitList.push(agentId);
-            
+
             if (!this.population.has(agentId)) {
-              this.population.set(agentId, { 
-                role: agentId, status: 'IDLE', providerAlias: alias, 
+              this.population.set(agentId, {
+                role: agentId, status: 'IDLE', providerAlias: alias,
                 group: AGENT_GROUP[a.role as AgentRole] || 'CORE',
                 usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
                 customPrompt: a.directive || AGENT_PERSONALITIES[a.role as AgentRole] || GLOBAL_CONSTRAINTS
@@ -339,13 +331,15 @@ export class SwarmCoordinator {
         return { success: true, content: text, usage, duration, velocity, providerAlias: alias };
       }
 
-      // ── Parallel Execution Hive (with Concurrency Control) ──────────────
+      // Parallel Execution Hive (with Concurrency Control)
       this.emitThought('COORDINATOR', `Dispatching ${finalRecruitList.length} nodes (Concurrency Limit: 10)...`, sessionId, 'ACTION');
-      
+
       const turnContext = relevantContext ? `[Memory]:\n${relevantContext}` : '';
       const results: AgentResult[] = [];
-      const CONCURRENCY_LIMIT = 10;
-      
+      const CONCURRENCY_LIMIT = this.config.system?.concurrency_limit || 10;
+      const MAX_RPM = this.config.system?.max_rpm || 60; // Default 60 RPM
+      const batchDelay = MAX_RPM > 0 ? (60 / MAX_RPM) * CONCURRENCY_LIMIT * 1000 : 0;
+
       for (let i = 0; i < finalRecruitList.length; i += CONCURRENCY_LIMIT) {
         const chunk = finalRecruitList.slice(i, i + CONCURRENCY_LIMIT);
         const chunkPromises = chunk.map((id, idx) => {
@@ -355,45 +349,51 @@ export class SwarmCoordinator {
         });
         const chunkResults = await Promise.all(chunkPromises);
         results.push(...chunkResults);
+
+        // Respect Rate Limits: Wait before next batch if we haven't reached the end
+        if (i + CONCURRENCY_LIMIT < finalRecruitList.length && batchDelay > 0) {
+          this.emitThought('COORDINATOR', `Rate limit protection active. Waiting ${(batchDelay / 1000).toFixed(1)}s before next swarm burst...`, sessionId, 'ACTION');
+          await new Promise(resolve => setTimeout(resolve, batchDelay));
+        }
       }
       results.forEach(r => totalTokens += (r.usage?.totalTokens || 0));
 
-      // ── Hierarchical Synthesis (Map-Reduce) ─────────────────────────────
+      // Hierarchical Synthesis (Map-Reduce)
       let synthesisInputs: AgentResult[] = results;
-      
+
       if (results.length > 12) {
         const squadBatches: AgentResult[][] = [];
         for (let i = 0; i < results.length; i += 10) {
           squadBatches.push(results.slice(i, i + 10));
         }
-        
+
         const squadBriefings = await Promise.all(squadBatches.map(batch => this.squadSynthesis(task, batch, alias, sessionId)));
         squadBriefings.forEach(b => totalTokens += (b.usage?.totalTokens || 0));
         synthesisInputs = squadBriefings;
       }
 
-      // ── Mass Synthesis (Final Reduce) ───────────────────────────────────
+      // Mass Synthesis (Final Reduce)
       this.emitThought('COORDINATOR', 'Aggregating surgical briefings...', sessionId, 'ACTION');
       const compositeOutput = synthesisInputs.map(r => `[${r.role}]:\n${r.text}`).join('\n\n---\n\n');
-      
+
       const { text: summary, usage: sumUsage } = await generateText({
         model: ModelProvider.getInstance().getModel(alias),
         system: AGENT_PERSONALITIES['COORDINATOR'],
         prompt: `Objective: ${task}\n\nSynthesize the hive output into a final tactical conclusion.\n\nResults:\n${compositeOutput}`
       });
-      
+
       this.updateStatus('COORDINATOR', 'IDLE', 'Synthesis complete', sumUsage);
       totalTokens += sumUsage?.totalTokens || 0;
-      
+
       const duration = (Date.now() - startTime) / 1000;
       const velocity = Math.round(totalTokens / (duration || 1));
-      
+
       this.emitThought('COORDINATOR', `Session Complete. Σ ${totalTokens} tokens | Δ ${duration.toFixed(1)}s | Velocity: ${velocity} TPS`, sessionId, 'ACTION');
       this.emitMessage('COORDINATOR', summary, sessionId, sumUsage);
-      
+
       await this.memory.addMemory(1, `Hive Task: ${task} | Summary: ${summary}`);
 
-      // ── Background Sovereign Hardening ──────────────────────────────────
+      // Background Sovereign Hardening
       this.triggerSovereignHardening(sessionId, alias);
 
       return { success: true, content: null, usage: { totalTokens }, duration, velocity, providerAlias: alias };

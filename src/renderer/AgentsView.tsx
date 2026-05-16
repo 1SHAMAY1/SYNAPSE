@@ -44,7 +44,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ swarmStatus }) => {
   return (
     <div className="h-full flex flex-col gap-8 overflow-y-auto pr-2 pb-12 scrollbar-hide">
       
-      {/* ── Population Metrics ──────────────────────────────────────────────── */}
+      {/* Population Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <MetricCard label="Active Swarm" value={swarmStatus.length} sub="Nodes Online" icon={<Users />} />
         <MetricCard label="Hive Density" value={swarmStatus.filter(s => s.status === 'THINKING').length} sub="Threads Busy" icon={<Activity />} />
@@ -52,7 +52,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ swarmStatus }) => {
         <MetricCard label="Hallucination Guard" value="Active" sub="Constraint Mode" icon={<Zap />} color="text-emerald-500" />
       </div>
 
-      {/* ── Swarm Composition Census ────────────────────────────────────────── */}
+      {/* Swarm Composition Census */}
       <div className="bg-slate-900/40 border border-slate-800/60 rounded-3xl p-6 flex flex-wrap gap-3">
         {Object.entries(
           swarmStatus.reduce((acc: Record<string, number>, s) => {
@@ -68,7 +68,7 @@ const AgentsView: React.FC<AgentsViewProps> = ({ swarmStatus }) => {
         ))}
       </div>
 
-      {/* ── Agent Grid ──────────────────────────────────────────────────────── */}
+      {/* Agent Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {sortedSwarm.map((agent) => (
           <motion.div

@@ -12,7 +12,7 @@ let mainWindow: BrowserWindow | null = null;
 let coordinator: SwarmCoordinator | null = null;
 let memory: MemoryEngine | null = null;
 
-// ── Persistence Logic ────────────────────────────────────────────────────────
+// Persistence Logic
 
 const getDefaultConfig = () => ({
   system: {
@@ -46,14 +46,14 @@ const saveConfig = (rootPath: string, newConfig: any) => {
   fs.writeFileSync(path.join(rootPath, 'synapse_config.json'), JSON.stringify(newConfig, null, 2));
 };
 
-// ── Application Lifecycle ────────────────────────────────────────────────────
+// Application Lifecycle
 
 async function createWindow() {
   const rootPath = app.isPackaged ? app.getPath('userData') : process.cwd();
   const config = loadConfig(rootPath);
   const dbPath = path.join(rootPath, config.system.sqlite_db_path || 'synapse_memory.db');
 
-  // ── 1. Initialize Core Intelligence First (Avoid Race Conditions) ──
+  // Initialize Core Intelligence First
   try {
     console.log(`[BOOT] Anchoring Swarm Intelligence at: ${dbPath}`);
     memory = new MemoryEngine(dbPath);
@@ -74,7 +74,7 @@ async function createWindow() {
     console.error("[CORE] Initialization failed:", e);
   }
 
-  // ── 2. Create Tactical Interface ──
+  // Create Tactical Interface
   const preloadPath = app.isPackaged
     ? path.join(__dirname, '../preload/index.js')
     : path.resolve(__dirname, '../../dist/preload/index.js');
@@ -105,7 +105,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
 
-// ─── IPC Handlers ────────────────────────────────────────────────────────────
+// IPC Handlers
 
 ipcMain.handle('get_config', async () => {
   const rootPath = app.isPackaged ? app.getPath('userData') : process.cwd();
@@ -132,7 +132,7 @@ ipcMain.handle('window_toggle_maximize', () => {
 });
 ipcMain.handle('window_close', () => mainWindow?.close());
 
-// ── Swarm Query (with optional image passthrough) ─────────────────────────────
+// Swarm Query
 ipcMain.handle('query_swarm', async (_, { task, providerLabel, imageData, sessionId }) => {
   if (!coordinator) throw new Error('Coordinator not initialized');
   // Persist user message to L0 Tactical Log
@@ -161,7 +161,7 @@ ipcMain.handle('get_system_metrics', async () => {
   return await memory.getMetrics();
 });
 
-// ── L0 Chat Persistence Handlers ──────────────────────────────────────────────
+// L0 Chat Persistence Handlers
 ipcMain.handle('get_chat_history', async (_, { missionId }) => {
   if (!memory) return [];
   return memory.getChatHistory(missionId || 1, 100);
@@ -190,7 +190,7 @@ ipcMain.handle('purge_all_data', async () => {
   return { success: true };
 });
 
-// ── Mission Lifecycle Handlers ───────────────────────────────────────────────
+// Mission Lifecycle Handlers
 ipcMain.handle('get_missions', async () => {
   if (!memory) return [];
   return memory.getMissions();

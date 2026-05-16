@@ -8,7 +8,6 @@ import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import DashboardView from './DashboardView';
 import AgentsView from './AgentsView';
-import SessionRail from './SessionRail';
 
 const getIpc = () => (window as any).ipcRenderer;
 
@@ -65,7 +64,32 @@ const isAgentRole = (role: string): role is AgentRole => ALL_AGENT_ROLES.include
 interface Metrics { l1: number; l2: number; l3: number; total: number; chat?: number; }
 interface Thought { role: string; content: string; type: 'THINK' | 'COMM' | 'ACTION'; timestamp: number; }
 
-// ── Utility Components ───────────────────────────────────────────────────────
+// Confirm Modal (replaces native confirm() to prevent Electron focus bug)
+const ConfirmModal: React.FC<{ message: string; onConfirm: () => void; onCancel: () => void }> = ({ message, onConfirm, onCancel }) => (
+  <motion.div
+    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+    onClick={onCancel}
+  >
+    <motion.div
+      initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
+      onClick={(e) => e.stopPropagation()}
+      className="bg-slate-900 border border-red-500/30 rounded-3xl p-8 max-w-sm w-full mx-4 shadow-2xl"
+    >
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 bg-red-500/10 rounded-xl"><Trash2 className="text-red-500" size={18} /></div>
+        <h3 className="text-sm font-black text-white uppercase tracking-wider">Confirm Wipe</h3>
+      </div>
+      <p className="text-xs text-slate-400 leading-relaxed mb-8">{message}</p>
+      <div className="flex gap-3">
+        <button onClick={onCancel} className="flex-1 py-3 rounded-2xl border border-slate-700 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:border-slate-500 hover:text-slate-200 transition-all">Cancel</button>
+        <button onClick={onConfirm} className="flex-1 py-3 rounded-2xl bg-red-500/10 border border-red-500/40 text-red-400 text-[10px] font-black uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all">Confirm Wipe</button>
+      </div>
+    </motion.div>
+  </motion.div>
+);
+
+// Utility Components
 
 const CopyButton: React.FC<{ text: string }> = ({ text }) => {
   const [copied, setCopied] = useState(false);
@@ -106,7 +130,7 @@ const MD_COMPONENTS = {
   },
 };
 
-// ── Sub-Components (Hoisted for Stability) ───────────────────────────────────
+// Sub-Components (Hoisted for Stability)
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
   constructor(props: any) {
@@ -146,16 +170,33 @@ const NavIcon = ({ icon, active, onClick }: any) => (
 
 const MemoryView = ({ onPurge }: { onPurge: () => void }) => {
   const [memories, setMemories] = useState<any[]>([]);
+  const [showConfirm, setShowConfirm] = useState(false);
+
   useEffect(() => {
     if (getIpc()) getIpc().invoke('get_memories', { layer: 1, limit: 100 }).then((data: any) => setMemories(Array.isArray(data) ? data : []));
   }, []);
 
+  const handleWipe = () => {
+    onPurge();
+    setMemories([]);
+    setShowConfirm(false);
+  };
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 h-full overflow-y-auto pr-6 pb-20 scrollbar-hide">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 h-full overflow-y-auto pr-6 pb-20 scrollbar-hide relative">
+      <AnimatePresence>
+        {showConfirm && (
+          <ConfirmModal
+            message="This will permanently erase all memories and chat logs. This action cannot be undone."
+            onConfirm={handleWipe}
+            onCancel={() => setShowConfirm(false)}
+          />
+        )}
+      </AnimatePresence>
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-xl font-bold text-slate-100 border-l-4 border-emerald-500 pl-4 tracking-tight">System Archive</h2>
         <button
-          onClick={() => { if (confirm('⚠️ CRITICAL: Permanently erase all local context and logs?')) onPurge(); }}
+          onClick={() => setShowConfirm(true)}
           className="px-5 py-2.5 bg-red-500/5 border border-red-500/20 text-red-500 rounded-xl text-[11px] font-bold uppercase hover:bg-red-500/10 transition-all tracking-wider flex items-center gap-2"
         >
           <Trash2 size={12} /> Wipe System Memory
@@ -329,6 +370,16 @@ const SettingsView = ({ config, setConfig }: any) => {
               <label className="text-[8px] font-black text-slate-600 uppercase tracking-widest block mb-2">Recursive Search Depth (Nodes)</label>
               <input type="number" value={config?.system?.recursive_threshold || 10} onChange={(e) => update('system.recursive_threshold', parseInt(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs font-bold text-slate-300 outline-none" />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-[8px] font-black text-slate-600 uppercase tracking-widest block mb-2">Rate Limit (Requests/Min)</label>
+                <input type="number" value={config?.system?.max_rpm || 60} onChange={(e) => update('system.max_rpm', parseInt(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs font-bold text-amber-500 outline-none" />
+              </div>
+              <div>
+                <label className="text-[8px] font-black text-slate-600 uppercase tracking-widest block mb-2">Concurrency Limit</label>
+                <input type="number" value={config?.system?.concurrency_limit || 10} onChange={(e) => update('system.concurrency_limit', parseInt(e.target.value))} className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-xs font-bold text-blue-500 outline-none" />
+              </div>
+            </div>
           </div>
         </section>
 
@@ -413,7 +464,7 @@ const App: React.FC = () => {
     }
   }, [messages.length, activeTab]);
 
-  // 1. Boot: load config + chat history
+  // Boot: load config + chat history
   useEffect(() => {
     const boot = async () => {
       const ipc = getIpc();
@@ -454,7 +505,7 @@ const App: React.FC = () => {
     boot();
   }, []);
 
-  // 2. Poll Swarm Status
+  // Poll Swarm Status
   useEffect(() => {
     const interval = setInterval(async () => {
       const ipc = getIpc();
@@ -463,24 +514,24 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // 3. Live agent messages — stream to UI + persist to L0
+  // Live agent messages
   useEffect(() => {
     const ipc = getIpc();
     if (!ipc) return;
 
     const handler = (msg: { role: AgentRole; content: string; sessionId: number; usage?: any; timestamp: number }) => {
-      // ── Session Gating ──────────────────────────────────────────────────
+      // Session Gating
       if (msg.sessionId === activeSessionIdRef.current) {
         const newMsg: Message = { role: msg.role, content: msg.content, timestamp: msg.timestamp };
         setMessages(prev => [...prev, newMsg]);
       }
 
-      // ── Live Telemetry Spike ─────────────────────────────────────────────
+      // Live Telemetry Spike
       if (isThinking && msg.usage) {
         responseCountRef.current += 1;
         const totalRunTime = (Date.now() - runStartRef.current) / 1000;
         setAvgResponseTime(totalRunTime / responseCountRef.current);
-        
+
         // Immediate TPS update based on this agent's payload
         const runTokens = (metrics.total - runTokensRef.current) + (msg.usage.totalTokens || 0);
         setVelocity(Math.round(runTokens / (totalRunTime || 1)));
@@ -494,7 +545,7 @@ const App: React.FC = () => {
     return () => ipc.removeListener('swarm_message', handler);
   }, [isThinking, metrics.total]);
 
-  // 4. Global Telemetry
+  // Global Telemetry
   useEffect(() => {
     const ipc = getIpc();
     if (!ipc) return;
@@ -510,7 +561,7 @@ const App: React.FC = () => {
     return () => { clearInterval(metricsInterval); ipc.removeListener('swarm_thought', thoughtHandler); };
   }, []);
 
-  // 5. 1-Hour Rolling Retention
+  // 1-Hour Rolling Retention
   useEffect(() => {
     const c = setInterval(() => {
       const h = Date.now() - 3600000;
@@ -533,7 +584,7 @@ const App: React.FC = () => {
     }
   };
 
-  // 6. Ctrl+V Screenshot Paste
+  // Ctrl+V Screenshot Paste
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
       const items = e.clipboardData?.items;
@@ -566,7 +617,7 @@ const App: React.FC = () => {
     setMessages([]);
   };
 
-  // 7. Session Control Logic
+  // Session Control Logic
   const handleSwitchSession = async (id: number) => {
     const ipc = getIpc();
     if (!ipc || id === activeSessionId) return;
@@ -584,7 +635,7 @@ const App: React.FC = () => {
   const handleCreateSession = async () => {
     const ipc = getIpc();
     if (!ipc) return;
-    
+
     // Electron's native prompt() is often blocked or silent. Auto-generating Hex-ID.
     const hexGen = Math.floor(Math.random() * 0xFFFFFF).toString(16).toUpperCase().padStart(6, '0');
     const name = `Session 0x${hexGen}`;
@@ -642,10 +693,6 @@ const App: React.FC = () => {
     try {
       const response = await ipc.invoke('query_swarm', { task: msgContent, imageData: image, sessionId: activeSessionId });
       if (response) {
-        if (response.content) {
-          const savedAiId = await ipc.invoke('save_chat_message', { role: 'assistant', content: response.content, sessionId: activeSessionId });
-          setMessages(prev => [...prev, { id: savedAiId, role: 'assistant', content: response.content, timestamp: Date.now() }]);
-        }
         if (response.usage) addLog(`Session complete. Total tokens: ${response.usage?.totalTokens || 0}`);
         if (response.velocity) setVelocity(response.velocity);
         if (response.duration) setDuration(response.duration);
@@ -682,16 +729,8 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <div className="h-screen w-screen bg-[#0a0a0a] flex overflow-hidden text-slate-200 font-sans selection:bg-emerald-500/30">
 
-        {/* Session Management Rail */}
-        <SessionRail
-          sessions={sessions}
-          activeSessionId={activeSessionId || 0}
-          onSwitch={handleSwitchSession}
-          onCreate={handleCreateSession}
-          onDelete={handleDeleteSession}
-        />
 
-        {/* Tab Sidebar - Silver & Green Metallic (Z-10) */}
+        {/* Tab Sidebar */}
         <nav className="w-20 bg-slate-900 border-r border-slate-800 h-full flex flex-col items-center py-8 gap-8 z-10">
           <div className="p-3 bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl shadow-[0_0_20px_rgba(16,185,129,0.3)]">
             <Cpu className="text-white w-6 h-6" />
@@ -728,7 +767,7 @@ const App: React.FC = () => {
 
             <div className="flex gap-3 items-center" style={{ WebkitAppRegion: 'no-drag' } as any}>
               <div className="flex gap-2 mr-4 border-r border-slate-800 pr-6">
-                {/* ── Collapsed Hive Indicator ── */}
+                {/* Collapsed Hive Indicator */}
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   onClick={() => setActiveTab('swarm')}
@@ -877,7 +916,7 @@ const App: React.FC = () => {
                     <div ref={chatEndRef} />
                   </div>
 
-                  {/* ── Input Tactical Overlay ────────────────────────────── */}
+                  {/* Input Tactical Overlay */}
                   <div className="absolute bottom-6 left-0 right-0 z-20 px-1">
                     <AnimatePresence>
                       {pastedImage && (
@@ -943,7 +982,7 @@ const App: React.FC = () => {
   );
 };
 
-// ── Sovereign Block Component (Metallic Hardening) ───────────────────────────
+// Sovereign Block Component (Metallic Hardening)
 const SovereignBlock = ({ summary, messages }: { summary: string, messages: any[] }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 

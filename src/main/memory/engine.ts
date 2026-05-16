@@ -70,10 +70,9 @@ export class MemoryEngine {
         hardened_to_id INTEGER DEFAULT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_chat_ts ON chat_messages(timestamp DESC);
-      CREATE INDEX IF NOT EXISTS idx_chat_mission ON chat_messages(mission_id);
     `);
 
-    // ── Self-Healing Migration ──
+    // Self-Healing Migration
     const missionCount = this.db.prepare('SELECT COUNT(*) as count FROM missions').get() as { count: number };
     if (missionCount.count === 0) {
       this.db.prepare("INSERT INTO missions (id, name, timestamp) VALUES (1, 'Default Mission', ?)").run(Date.now());
@@ -85,6 +84,9 @@ export class MemoryEngine {
     } catch {
       this.db.exec('ALTER TABLE chat_messages ADD COLUMN mission_id INTEGER DEFAULT 1');
     }
+    
+    // Now safe to create index
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_chat_mission ON chat_messages(mission_id)');
 
     // Ensure hardened_to_id column exists
     try {
@@ -94,7 +96,7 @@ export class MemoryEngine {
     }
   }
 
-  // ── L1/L2/L3 Brain Methods ─────────────────────────────────────────────────
+  // L1/L2/L3 Brain Methods
 
   async addMemory(layer: 1 | 2 | 3, content: string, metadata: object = {}) {
     try {
@@ -145,7 +147,7 @@ export class MemoryEngine {
     this.db.prepare('DELETE FROM memories WHERE layer = ?').run(layer);
   }
 
-  // ── Mission Lifecycle Methods ──────────────────────────────────────────
+  // Mission Lifecycle Methods
 
   createMission(name: string): number {
     const stmt = this.db.prepare('INSERT INTO missions (name, timestamp) VALUES (?, ?)');
@@ -165,7 +167,7 @@ export class MemoryEngine {
     })();
   }
 
-  // ── L0 Tactical Chat Log Methods (Mission-Aware) ──────────────────────────
+  // L0 Tactical Chat Log Methods (Mission-Aware)
 
   addChatMessage(role: string, content: string, imageData?: string, missionId: number = 1): number {
     const stmt = this.db.prepare(`
@@ -212,18 +214,19 @@ export class MemoryEngine {
   }
 
   purgeAllData() {
-    this.db.transaction(() => {
+    const purge = this.db.transaction(() => {
       this.db.prepare('DELETE FROM memories').run();
       this.db.prepare('DELETE FROM chat_messages').run();
-      this.db.prepare('DELETE FROM sqlite_sequence WHERE name IN ("memories", "chat_messages")').run();
-    })();
+      this.db.prepare("DELETE FROM sqlite_sequence WHERE name IN ('memories', 'chat_messages')").run();
+    });
+    purge();
   }
 
   deleteChatMessage(id: number) {
     this.db.prepare('DELETE FROM chat_messages WHERE id = ?').run(id);
   }
 
-  // ── Predictive Context Retrieval (Semantic RAG) ────────────────────────────
+  // Predictive Context Retrieval (Semantic RAG)
   // Fetches the most relevant historical memories by keyword match as a lightweight
   // semantic proxy until a full embedding model is wired in.
   getRelevantContext(query: string, topK: number = 5): string {
