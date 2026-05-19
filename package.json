@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "start": "electron .",
-    "test": "vitest"
+    "test": "vitest",
+    "package": "npm run build && electron-builder --win",
+    "package:dir": "npm run build && electron-builder --dir"
   },
   "keywords": [],
   "author": "",
@@ -23,7 +25,6 @@
     "better-sqlite3": "^12.9.0",
     "chart.js": "^4.5.1",
     "dotenv": "^17.4.2",
-    "electron": "^41.2.1",
     "electron-updater": "^6.1.7",
     "framer-motion": "^12.4.7",
     "lucide-react": "^0.475.0",
@@ -46,6 +47,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "autoprefixer": "^10.5.0",
+    "electron": "^41.2.1",
+    "electron-builder": "^26.8.1",
     "electron-rebuild": "^3.2.9",
     "esbuild": "^0.28.0",
     "postcss": "^8.5.10",
@@ -55,5 +58,38 @@
     "vite-plugin-electron": "^0.29.1",
     "vite-plugin-electron-renderer": "^0.14.6",
     "vitest": "^4.1.4"
+  },
+  "build": {
+    "appId": "com.synapse.swarm",
+    "productName": "SYNAPSE",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**/*"
+    ],
+    "npmRebuild": true,
+    "publish": {
+      "provider": "github",
+      "owner": "1SHAMAY1",
+      "repo": "SYNAPSE"
+    }
   }
 }
